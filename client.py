@@ -13,9 +13,11 @@ isTalking = False
 
 def recieve(s):
   while True:
-    print('recieving')
-    data = s.recv(1024)
-    print('\n'+data.decode('utf-8'), end='')
+    data = s.recv(1024).decode('utf-8')
+    if 'talk request' in data.lower():
+      print('\n{0}'.format(data))
+    else:
+      print(data)
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         
@@ -28,5 +30,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
   thread.start()
   user_in = ''
   while user_in != "exit":
-    user_in = input('> ').lower()
+    if isTalking == True:
+      user_in = input('')
+    else:
+      user_in = input('> ').lower()
+    if 'talk' in user_in or 'accept' in user_in:
+      isTalking = True
     s.sendall(bytes(user_in, 'utf-8'))
