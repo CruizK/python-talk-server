@@ -11,13 +11,13 @@ PORT = int(sys.argv[2])
 
 isTalking = False
 
-SERVER_RESP = 0
-CHAT_MSG = 1
-TALK_REQ = 2
-ACCEPT_REQ = 3
-TALK_ESTAB = 4
-CHAT_DESTROY = 5
-CLOSE_CONN = 6
+SERVER_RESP = 1
+CHAT_MSG = 2
+TALK_REQ = 3
+ACCEPT_REQ = 4
+TALK_ESTAB = 5
+CHAT_DESTROY = 6
+CLOSE_CONN = 7
 
 BUFF = 1024
 
@@ -48,6 +48,8 @@ def recieve(s):
       isTalking = False
       print(pkt[1], end='\n> ')
     elif pkt[0] == CLOSE_CONN:
+      break
+    else:
       break
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

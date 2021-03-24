@@ -12,13 +12,14 @@ HOST = '0.0.0.0'
 PORT = int(sys.argv[1])
 
 
-SERVER_RESP = 0
-CHAT_MSG = 1
-TALK_REQ = 2
-ACCEPT_REQ = 3
-TALK_ESTAB = 4
-CHAT_DESTROY = 5
-CLOSE_CONN = 6
+
+SERVER_RESP = 1
+CHAT_MSG = 2
+TALK_REQ = 3
+ACCEPT_REQ = 4
+TALK_ESTAB = 5
+CHAT_DESTROY = 6
+CLOSE_CONN = 7
 
 BUFF = 1024
 
@@ -39,17 +40,21 @@ class Client:
     self.ip = ip
 
 def chat_thread(my_client, chat):
-  msg = ''
+  msg = my_client.conn.recv(BUFF).decode('utf-8')
   while msg.lower() != 'exit' and my_client.talking:
-    msg = my_client.conn.recv(BUFF).decode('utf-8')
+    
     if chat.host not in chats:
+      print("Terminating client", my_client.name)
+      my_client.talking = False
       return
-    print('{0}: {1}', my_client.name, msg)
+    print('{0}: {1}'.format(my_client.name, msg))
     for client in chat.clients:
       if client != my_client:
-        client.conn.sendall(encode_pkt(CHAT_MSG, '{0}: {1}'.format(client.name, msg)))
+        client.conn.sendall(encode_pkt(CHAT_MSG, '{0}: {1}'.format(my_client.name, msg)))
+    msg = my_client.conn.recv(BUFF).decode('utf-8')
   
   if chat.host in chats:
+    print("Chat Terminated by {0}".format(my_client.name))
     for client in chat.clients:
       client.conn.sendall(encode_pkt(CHAT_DESTROY, 'Connection Terminated'))
       client.talking = False
@@ -66,6 +71,16 @@ def spawn_chat_thread(client, chat):
   thread = threading.Thread(target=chat_thread, args=(client,chat,))
   thread.start()
 
+def start_talk(client, recivers):
+  for reciver in recivers:
+    clients[reciver].conn.sendall(encode_pkt(TALK_REQ, 'Talk Request from {0}@{1}. Respond with "accept {0}@{1}"'.format(client.name, addr[0])))
+    client.conn.sendall(encode_pkt(SERVER_RESP, "Ringing {0}".format(reciver)))
+    client.ringing.append(reciver)
+  chat = Chat(client.name)
+  chat.clients.append(client)
+  client.talking = True
+  chats[client.name] = chat
+  spawn_chat_thread(client, chat)
 
 def on_client_conn(conn):
   print('Accepted Request from ip: {0}'.format(addr[0]))
@@ -81,6 +96,7 @@ def on_client_conn(conn):
       pass
     else: 
       rec_line = conn.recv(BUFF).decode('utf-8')
+      print(name, rec_line)
       rec_line = rec_line.replace(',', '').split(' ')
 
       command = rec_line[0].lower()
@@ -94,17 +110,12 @@ def on_client_conn(conn):
           conn.sendall(encode_pkt(SERVER_RESP, "talk <client_name>"))
           continue
         reciver = rec_line[1]
-        print(reciver)
         if reciver not in clients:
           conn.sendall(encode_pkt(SERVER_RESP, "Invalid Client"))
+        elif clients[reciver].talking:
+          conn.sendall(encode_pkt(SERVER_RESP, "Client is busy"))
         else:
-          clients[reciver].conn.sendall(encode_pkt(TALK_REQ, 'Talk Request from {0}@{1}. Respond with "accept {0}@{1}"'.format(name, addr[0])))
-          conn.sendall(encode_pkt(SERVER_RESP, "Ringing {0}".format(reciver)))
-          clients[name].ringing.append(reciver)
-          chats[name] = Chat(name)
-          chats[name].clients.append(clients[name])
-          clients[name].talking = True
-          spawn_chat_thread(clients[name], chats[name])
+          start_talk(clients[name], [reciver])
       elif command == 'accept':
         if len(rec_line) < 2:
           conn.sendall(encode_pkt(SERVER_RESP, "accept <client_name>@<client_ip>"))
@@ -121,56 +132,26 @@ def on_client_conn(conn):
           conn.sendall(encode_pkt(ACCEPT_REQ, ''))
           clients[name].talking = True
           spawn_chat_thread(clients[name], chat)
+      elif command == 'conference':
+        if len(rec_line) < 4:
+          conn.sendall(encode_pkt(SERVER_RESP, "conference talk <client_name1>, <client_name2>"))
+          continue
+        reciver_one = rec_line[2]
+        reciver_two = rec_line[3]
+        if reciver_one not in clients or reciver_two not in clients:
+          conn.sendall(encode_pkt(SERVER_RESP, "Invalid Client"))
+        elif clients[reciver_one].talking or clients[reciver_two].talking:
+          conn.sendall(encode_pkt(SERVER_RESP, "Client is busy"))
+        else:
+          start_talk(clients[name], [reciver_one, reciver_two])
+          clients[name].talking = True
       else:
         conn.sendall(encode_pkt(SERVER_RESP, "Invalid Command"))
 
 
 
-"""
-  while clients[name].talking == False:
-    statement = conn.recv(1024).decode('utf-8')
-    statement = statement.replace(',', '').split(' ')
-    if len(statement) < 2:
-      conn.sendall(b'>Server: Invalid Command')
-      continue
-    cmd = statement[0]
-    if cmd == 'talk':
-      reciever = statement[1]
-      if reciever in clients:
-        clients[reciever].conn.sendall(bytes('>Talk Request from {0}@{1}. Respond with "accept {0}@{1}"'.format(name, addr[0]), 'utf-8'))
-        chats[name] = Chat()
-        chats[name].clients.append(clients[name])
-        chats[name].rung.append(clients[reciever])
-        clients[name].talking = True
-        conn.sendall('Ringing {0}'.format(reciever).encode('utf-8'))
-    elif cmd == 'conference':
-      pass
-    elif cmd == 'accept':
-      client_name = statement[1].split('@')[0]
-      chat = chats[client_name]
-      if client_name in clients and clients[name] in chat.rung:
-        chat.clients.append(clients[name])
-        chat.rung.remove(clients[name])
-        clients[client_name].conn.sendall('Talk connection established with {0}'.format(name).encode('utf-8'))
-        if len(chat.rung) == 0:
-          for client in chat.clients:
-            client.talking = True
-            thread = threading.Thread(target=chat_thread, args=(client,chat,))
-            thread.start()
-          return
-        
-    else:
-      conn.sendall(b'>Server: Invalid Command')
-      continue
-    """
-
-      
-        
-        
-        
-
-
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+  s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   s.bind((HOST, PORT))
   s.listen()
   while True:
