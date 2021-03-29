@@ -109,9 +109,9 @@ def on_client_conn(conn):
           continue
         reciver = rec_line[1]
         if reciver not in clients:
-          conn.sendall(encode_pkt(SERVER_RESP, "Invalid Client"))
+          conn.sendall(encode_pkt(SERVER_RESP, "Client {0} is not logged in".format(reciver)))
         elif clients[reciver].talking:
-          conn.sendall(encode_pkt(SERVER_RESP, "Client is busy"))
+          conn.sendall(encode_pkt(SERVER_RESP, "{0} is in Talk session. Request Dnied".format(reciver)))
         else:
           start_talk(clients[name], [reciver])
       elif command == 'accept':
@@ -137,9 +137,9 @@ def on_client_conn(conn):
         reciver_one = rec_line[2]
         reciver_two = rec_line[3]
         if reciver_one not in clients or reciver_two not in clients:
-          conn.sendall(encode_pkt(SERVER_RESP, "Invalid Client"))
+          conn.sendall(encode_pkt(SERVER_RESP, "Client {0} is not logged in".format(reciver_one)))
         elif clients[reciver_one].talking or clients[reciver_two].talking:
-          conn.sendall(encode_pkt(SERVER_RESP, "Client is busy"))
+          conn.sendall(encode_pkt(SERVER_RESP, "{0} is in Talk session. Request Dnied".format(reciver_one)))
         else:
           start_talk(clients[name], [reciver_one, reciver_two])
           clients[name].talking = True

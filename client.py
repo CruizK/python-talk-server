@@ -41,7 +41,7 @@ def recieve(s):
       print(pkt[1], end='\n> ')
     elif pkt[0] == ACCEPT_REQ:
       isTalking = True
-      print('')
+      print('Talk Established')
     elif pkt[0] == CHAT_MSG:
       print(pkt[1])
     elif pkt[0] == CHAT_DESTROY:
