@@ -54,7 +54,6 @@ def chat_thread(my_client, chat):
     msg = my_client.conn.recv(BUFF).decode('utf-8')
   
   if chat.host in chats:
-    print("Chat Terminated by {0}".format(my_client.name))
     for client in chat.clients:
       client.conn.sendall(encode_pkt(CHAT_DESTROY, 'Connection Terminated'))
       client.talking = False
@@ -96,7 +95,6 @@ def on_client_conn(conn):
       pass
     else: 
       rec_line = conn.recv(BUFF).decode('utf-8')
-      print(name, rec_line)
       rec_line = rec_line.replace(',', '').split(' ')
 
       command = rec_line[0].lower()
